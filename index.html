@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport"="width=device-width, initial-scale=1">
-  <title>最小生成樹 - MST</title>
+  <title>A 到 F 最短路徑</title>
   <style>
     :root {
       color-scheme: dark;
@@ -36,7 +36,7 @@
     }
     #graphWrap { position: relative; min-height: 540px; overflow: hidden; }
     svg { width: 100%; height: 540px; display: block; }
-    .edge { stroke: var(--line); stroke-width: 3; }
+    .edge { stroke: var(--line); stroke-width: 3; cursor: pointer; }
     .edge.selected { stroke: var(--chosen); stroke-width: 7; }
     .edge-label {
       fill: var(--text); font-weight: 800; font-size: 17px; paint-order: stroke;
@@ -73,6 +73,7 @@
       background: #091321;
       min-height: 92px;
     }
+    ol { padding-left: 22px; line-height: 1.65; }
     #total { color: var(--good); font-size: 30px; font-weight: 900; }
     #path { color: var(--muted); line-height: 1.7; }
     @media (max-width: 800px) {
@@ -83,8 +84,8 @@
 </head>
 <body>
 <main>
-  <h1>最小生成樹</h1>
-  <p class="subtitle">A 與 F 位於左右兩側，B、C、D、E 形成正方形。隨機產生任意兩點之間的 cost，再使用 Kruskal演算法計算。</p>
+  <h1>A 到 F 最短路徑</h1>
+  <p class="subtitle">每個點只與相鄰點連線。點位排列為 B 左上、E 右上、C 右下、D 左下，並以 Dijkstra 演算法計算 A 到 F 的最短路徑。</p>
   <div class="layout">
     <section class="card" id="graphWrap" aria-label="六點圖形">
       <svg id="graph" viewBox="0 0 760 540"></svg>
@@ -96,25 +97,34 @@
         <select id="from"></select>
         <select id="to"></select>
       </div>
-      <label for="cost">這兩點之間的 cost</label>
+      <label for="cost">相鄰兩點之間的 cost</label>
       <input id="cost" type="number" min="1" max="99" value="10">
       <button id="apply" type="button">套用成本並顯示</button>
       <button id="randomize" class="secondary" type="button">隨機產生所有 cost</button>
       <button id="calculate" type="button">計算最小生成樹</button>
       <div id="result" aria-live="polite">
-        <div>最小總成本</div>
+        <div>最短總成本</div>
         <div id="total">—</div>
         <div id="path">請先產生成本並計算。</div>
+        <ol id="steps"><li>設定完成後按「計算最短路徑」。</li></ol>
       </div>
     </aside>
   </div>
 </main>
 <script>
 const nodes = ['A', 'B', 'C', 'D', 'E', 'F'];
-const positions = { A:[70,270], B:[280,150], C:[480,150], D:[480,390], E:[280,390], F:[690,270] };
+const positions = { A:[70,270], B:[280,150], C:[480,390], D:[280,390], E:[480,150], F:[690,270] };
 const svg = document.getElementById('graph');
 let edges = [];
 let selectedEdge = new Set();
+const adjacencyKeys = new Set([
+  'A-B', 'A-D',
+  'B-E',
+  'E-C',
+  'C-D',
+  'B-D',
+  'F-E', 'F-C'
+].map(key => key.split('-').sort().join('-')));
 
 for (const from of nodes) {
   document.getElementById('from').insertAdjacentHTML('beforeend', `<option>${from}</option>`);
@@ -124,15 +134,71 @@ document.getElementById('to').value = 'B';
 
 function makeEdges() {
   edges = [];
-  for (let i = 0; i < nodes.length; i++) {
-    for (let j = i + 1; j < nodes.length; j++) {
-      edges.push({ from: nodes[i], to: nodes[j], cost: Math.floor(Math.random() * 20) + 1 });
-    }
+  const possible = ['A-B', 'A-D', 'B-E', 'E-C', 'C-D', 'B-D', 'F-E', 'F-C'];
+  for (const pair of possible) {
+    const [from, to] = pair.split('-');
+    edges.push({ from, to, cost: Math.floor(Math.random() * 20) + 1 });
   }
   draw();
 }
 
+function setEdges() {
+  edges = [];
+  const possible = ['A-B', 'A-D', 'B-E', 'E-C', 'C-D', 'B-D', 'F-E', 'F-C'];
+  for (const pair of possible) {
+    const [from, to] = pair.split('-');
+    edges.push({ from, to, cost: Math.floor(Math.random() * 20) + 1 });
+  }
+}
+
 function edgeKey(a, b) { return [a, b].sort().join('-'); }
+
+function dijkstra() {
+  const distances = Object.fromEntries(nodes.map(node => [node, Infinity]));
+  const previous = {};
+  distances.A = 0;
+  const unvisited = new Set(nodes);
+  const steps = ['從起點 A 開始，令 A = 0，其餘點為∞。'];
+
+  while (unvisited.size) {
+    const current = [...unvisited].sort((a, b) => distances[a] - distances[b])[0];
+    if (!Number.isFinite(distances[current])) break;
+    unvisited.delete(current);
+    if (current === 'F') break;
+
+    for (const edge of edges) {
+      if (edge.from !== current && edge.to !== current) continue;
+      const neighbor = edge.from === current ? edge.to : edge.from;
+      if (!unvisited.has(neighbor)) continue;
+      const candidate = distances[current] + edge.cost;
+      if (candidate < distances[neighbor]) {
+        distances[neighbor] = candidate;
+        previous[neighbor] = current;
+        steps.push(`${current} → ${neighbor}：${distances[current]} + ${edge.cost} = ${candidate}，更新為 ${candidate}。`);
+      }
+    }
+  }
+
+  const route = [];
+  let current = 'F';
+  while (current) {
+    route.unshift(current);
+    if (current === 'A') break;
+    current = previous[current];
+  }
+  if (!Number.isFinite(distances.F)) {
+    document.getElementById('total').textContent = '∞';
+    document.getElementById('path').textContent = 'A 無法到達 F。';
+    document.getElementById('steps').innerHTML = '';
+    return;
+  }
+  selectedEdge = new Set(route.slice(0, -1).map((node, index) => edgeKey(node, route[index + 1])));
+  document.getElementById('total').textContent = distances.F;
+  document.getElementById('path').textContent = `最短路徑：${route.join(' → ')}`;
+  steps.push(`到達 F：A 到 F 的最短成本為 ${distances.F}，路徑為 ${route.join(' → ')}。`);
+  document.getElementById('steps').innerHTML = steps.map(step => `<li>${step}</li>`).join('');
+  draw();
+}
 
 function draw() {
   svg.innerHTML = '';
@@ -167,28 +233,7 @@ function draw() {
   }
 }
 
-function calculate() {
-  const parent = Object.fromEntries(nodes.map(node => [node, node]));
-  const find = node => parent[node] === node ? node : (parent[node] = find(parent[node]));
-  const union = (a, b) => {
-    a = find(a); b = find(b);
-    if (a === b) return false;
-    parent[b] = a;
-    return true;
-  };
-  const chosen = [];
-  for (const edge of [...edges].sort((a, b) => a.cost - b.cost)) {
-    if (union(edge.from, edge.to)) chosen.push(edge);
-    if (chosen.length === nodes.length - 1) break;
-  }
-  selectedEdge = new Set(chosen.map(edge => edgeKey(edge.from, edge.to)));
-  const total = chosen.reduce((sum, edge) => sum + edge.cost, 0);
-  document.getElementById('total').textContent = total;
-  document.getElementById('path').innerHTML = chosen
-    .map(edge => `<strong>${edge.from}-${edge.to}</strong>：${edge.cost}`)
-    .join('<br>');
-  draw();
-}
+function calculate() { dijkstra(); }
 
 document.getElementById('apply').addEventListener('click', () => {
   const from = document.getElementById('from').value;
@@ -199,10 +244,15 @@ document.getElementById('apply').addEventListener('click', () => {
     return;
   }
   const edge = edges.find(item => edgeKey(item.from, item.to) === edgeKey(from, to));
+  if (!edge || !adjacencyKeys.has(edgeKey(from, to))) {
+    alert('A、B、C、D、E、F 之間只能修改相鄰的線。');
+    return;
+  }
   edge.cost = cost;
   selectedEdge.clear();
   document.getElementById('total').textContent = '—';
   document.getElementById('path').textContent = '成本已更新，請重新計算。';
+  document.getElementById('steps').innerHTML = '<li>成本已更新，請重新計算最短路徑。</li>';
   draw();
 });
 document.getElementById('randomize').addEventListener('click', () => {
