@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="互動式 RAG 檢索增強生成教學：用校園 FAQ 示範文件檢索與答案生成。">
+  <title>RAG 校園問答示範</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0c1720;
+      --panel: #13222d;
+      --panel-light: #1b2d39;
+      --line: #2a4352;
+      --text: #e8f2f8;
+      --muted: #91aabd;
+      --accent: #6bc7e8;
+      --green: #64d6ad;
+      --orange: #ffb86b;
+      --red: #ff7885;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at 50% -20%, #1b3444 0, var(--bg) 60%);
+      color: var(--text);
+      font: 15px/1.6 system-ui, -apple-system, "Microsoft JhengHei", sans-serif;
+    }
+    main { width: min(1120px, 94vw); margin: auto; padding: 28px 0 42px; }
+    h1 { margin: 0; font-size: clamp(28px, 5vw, 42px); line-height: 1.2; }
+    h2 { margin: 0 0 12px; font-size: 19px; }
+    h3 { margin: 0 0 7px; font-size: 15px; }
+    p { margin: 8px 0; }
+    .muted, .subtitle { color: var(--muted); }
+    .subtitle { margin: 8px 0 20px; }
+    .topline {
+      display: flex; justify-content: space-between; gap: 12px; align-items: center;
+      border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 22px;
+      color: var(--muted); font-size: 13px;
+    }
+    .topline a, .footer-link { color: var(--accent); text-decoration: none; }
+    .topline a:hover, .footer-link:hover { text-decoration: underline; }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(19, 34, 45, .96);
+      box-shadow: 0 16px 42px rgba(0,0,0,.2);
+    }
+    .querybar { padding: 15px; display: grid; grid-template-columns: 1fr auto; gap: 10px; }
+    input, select, button {
+      border: 1px solid #365464; border-radius: 9px;
+      background: #0d1a23; color: var(--text); font: inherit;
+    }
+    input { width: 100%; padding: 11px 13px; }
+    input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    button { padding: 10px 16px; cursor: pointer; font-weight: 750; }
+    button.primary { background: #d7eff8; border-color: #d7eff8; color: #11232d; }
+    button.secondary { background: #233947; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .example-queries { display:flex; flex-wrap:wrap; gap:7px; padding: 0 15px 14px; }
+    .example-queries button { font-size: 12px; padding: 6px 9px; color: var(--muted); }
+    .grid { display:grid; grid-template-columns:minmax(0, 1fr) 300px; gap:16px; margin-top:16px; }
+    .main-column, .side-column { display:grid; align-content:start; gap:16px; }
+    .section { padding:17px; }
+    .section-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+    .section-head small { color:var(--muted); }
+    .question-card, .answer-card, .prompt-card {
+      border-radius:10px; background:#0d1a23; padding:14px;
+    }
+    .eyebrow { color:var(--accent); font-size:11px; letter-spacing:.08em; font-weight:800; }
+    #questionText { margin:4px 0 0; font-size:18px; font-weight:750; }
+    .document-list { display:grid; gap:6px; margin-top:13px; }
+    .document {
+      display:grid; grid-template-columns:38px 1fr auto; gap:10px; align-items:center;
+      background:var(--panel-light); border:1px solid transparent; border-radius:8px;
+      padding:9px 10px; font-size:13px;
+    }
+    .document.retrieved { border-color:#3a7181; background:#1b3440; }
+    .document-id { color:var(--accent); font-weight:800; }
+    .score { color:var(--green); white-space:nowrap; font-size:12px; }
+    .stages { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:14px; }
+    .stage {
+      border:1px solid var(--line); border-radius:9px; padding:9px;
+      color:var(--muted); font-size:12px; text-align:center;
+    }
+    .stage.active { border-color:var(--accent); color:var(--text); background:#19313d; }
+    .stage.done { border-color:#327b68; color:var(--green); }
+    .stats { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .stat { border-radius:9px; background:#0d1a23; padding:10px; }
+    .stat span { display:block; font-size:11px; color:var(--muted); }
+    .stat strong { font-size:20px; color:var(--green); }
+    .stat.orange strong { color:var(--orange); }
+    .answer-card { min-height:94px; }
+    #answer { margin:5px 0; }
+    #citations { color:var(--muted); font-size:12px; }
+    .timeline { display:grid; gap:8px; font-size:13px; }
+    .timeline-item { border-left:2px solid var(--line); padding:3px 0 3px 10px; color:var(--muted); }
+    .timeline-item.current { border-color:var(--accent); color:var(--text); }
+    .timeline-item.done { border-color:var(--green); }
+    .explain { margin-top:18px; display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+    .explain article { padding:16px; }
+    .explain article p { color:var(--muted); font-size:13px; margin-bottom:0; }
+    .flow { color:var(--accent); font-weight:800; }
+    .footer-link { display:inline-block; margin-top:18px; }
+    @media (max-width:760px) {
+      .grid { grid-template-columns:1fr; }
+      .explain { grid-template-columns:1fr; }
+      .topline { align-items:flex-start; flex-direction:column; }
+      .querybar { grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <div class="topline">
+    <span>資料結構互動教材　·　RAG 檢索增強生成</span>
+    <a href="./">返回 Kruskal 最小生成樹作業</a>
+  </div>
+  <h1>RAG 校園問答示範</h1>
+  <p class="subtitle">觀察 AI 如何先從文件找資料，再根據找到的內容回答問題。</p>
+
+  <section class="panel" aria-label="問題輸入">
+    <div class="querybar">
+      <input id="questionInput" aria-label="輸入校園問題" placeholder="例如：餐廳晚餐供餐到幾點？">
+      <button id="startButton" class="primary" type="button">開始檢索</button>
+    </div>
+    <div class="example-queries" aria-label="範例問題">
+      <button type="button" data-question="餐廳晚餐供餐到幾點？">餐廳供餐時間</button>
+      <button type="button" data-question="宿舍門禁是幾點？">宿舍門禁</button>
+      <button type="button" data-question="學生可以借多少本書？">圖書館借書</button>
+      <button type="button" data-question="校園停車每小時多少錢？">停車費用</button>
+    </div>
+  </section>
+
+  <div class="grid">
+    <div class="main-column">
+      <section class="panel section" aria-label="檢索結果">
+        <div class="section-head">
+          <h2>問題與知識文件</h2>
+          <small id="documentCount">KNOWLEDGE BASE · 10 份文件</small>
+        </div>
+        <div class="question-card">
+          <div class="eyebrow">QUESTION</div>
+          <div id="questionText">餐廳晚餐供餐到幾點？</div>
+        </div>
+        <div class="stages" aria-label="RAG 工作流程">
+          <div id="stageRetrieve" class="stage">1. 檢索相關文件</div>
+          <div id="stageAugment" class="stage">2. 整合檢索內容</div>
+          <div id="stageGenerate" class="stage">3. 生成答案</div>
+        </div>
+        <div id="documentList" class="document-list"></div>
+      </section>
+      <section class="panel section" aria-label="模型回答">
+        <div class="section-head"><h2>生成的回答</h2><small>回答附有來源文件</small></div>
+        <div class="answer-card">
+          <div class="eyebrow">ANSWER</div>
+          <p id="answer" aria-live="polite">按下「開始檢索」，看看模型如何根據知識文件回答。</p>
+          <div id="citations"></div>
+        </div>
+      </section>
+      <section class="panel section" aria-label="RAG 簡介">
+        <h2>RAG 是什麼？</h2>
+        <p>RAG 是 <strong>Retrieval-Augmented Generation</strong>，中文常稱「檢索增強生成」。它先從外部知識庫找出與問題相關的資料，再把資料提供給語言模型，讓模型根據來源生成回答。</p>
+        <p class="flow">問題 → 檢索文件 → 提供上下文 → 生成答案</p>
+      </section>
+    </div>
+    <aside class="side-column">
+      <section class="panel section">
+        <div class="section-head"><h2>本次統計</h2><small>本機示範</small></div>
+        <div class="stats">
+          <div class="stat"><span>檢索文件數</span><strong id="retrievedCount">0</strong></div>
+          <div class="stat"><span>最佳相關度</span><strong id="bestScore">—</strong></div>
+          <div class="stat orange"><span>知識庫文件</span><strong>10</strong></div>
+          <div class="stat orange"><span>Top-k</span><strong>2</strong></div>
+        </div>
+      </section>
+      <section class="panel section">
+        <h2>處理過程</h2>
+        <div id="timeline" class="timeline" aria-live="polite">
+          <div class="timeline-item">等待輸入問題。</div>
+        </div>
+      </section>
+      <section class="panel section">
+        <h2>簡單模型說明</h2>
+        <p class="muted">此示範以關鍵字重疊計算文件相關度，選出分數最高的 2 份文件，再套用校園 FAQ 範本產生答案。它用來展示 RAG 流程，不會呼叫外部 AI，也不是大型語言模型。</p>
+      </section>
+    </aside>
+  </div>
+
+  <section class="explain" aria-label="RAG 三個步驟">
+    <article class="panel">
+      <div class="eyebrow">01 · RETRIEVAL</div>
+      <h3>檢索：找到相關資料</h3>
+      <p>把問題拆成關鍵字，和知識庫文件比對，挑出最相關的內容。真實系統常使用向量嵌入與向量資料庫。</p>
+    </article>
+    <article class="panel">
+      <div class="eyebrow">02 · AUGMENTATION</div>
+      <h3>增強：提供回答依據</h3>
+      <p>把找到的文件片段連同原問題一起交給模型，作為生成答案時的上下文，降低只靠模型記憶回答的情況。</p>
+    </article>
+    <article class="panel">
+      <div class="eyebrow">03 · GENERATION</div>
+      <h3>生成：依據來源回答</h3>
+      <p>模型根據問題與檢索內容整理答案，並列出來源，方便檢查答案是否有文件依據。</p>
+    </article>
+  </section>
+  <a class="footer-link" href="./shortest-path.html">前往 A 到 F 最短路徑作業</a>
+</main>
+<script>
+const documents = [
+  { id: 'D1', text: '海大餐廳平日午餐供餐時段是 11:00 到 13:30，晚餐是 17:00 到 19:00。', answer: '海大餐廳晚餐供餐到 19:00。' },
+  { id: 'D2', text: '餐廳可以使用學生證儲值付款，也可以使用現金。', answer: '餐廳可使用學生證儲值或現金付款。' },
+  { id: 'D3', text: '圖書館平日開放到晚上 22:00，週末開放到 17:00。', answer: '圖書館平日開放到 22:00，週末開放到 17:00。' },
+  { id: 'D4', text: '大學部學生一次可以借 10 本書，借閱期限是 30 天。', answer: '大學部學生一次可借 10 本書，期限為 30 天。' },
+  { id: 'D5', text: '借書逾期未還，每本書每天罰 5 元。', answer: '借書逾期每本每天罰 5 元。' },
+  { id: 'D6', text: '宿舍門禁時間是晚上 23:30，晚歸學生需要登記。', answer: '宿舍門禁是晚上 23:30，晚歸需要登記。' },
+  { id: 'D7', text: '宿舍住宿費每學期 12000 元，開學前需繳費。', answer: '宿舍住宿費每學期 12000 元。' },
+  { id: 'D8', text: '校車每 20 分鐘一班，往返校門與學生餐廳。', answer: '校車每 20 分鐘一班，往返校門與學生餐廳。' },
+  { id: 'D9', text: '游泳池平日開放到 21:00，提供學生使用。', answer: '游泳池平日開放到 21:00。' },
+  { id: 'D10', text: '機車停車每小時 500 元，要在停車場上鎖。', answer: '機車停車費每小時 500 元，並請上鎖。' }
+];
+const stopWords = new Set(['請問', '請問一下', '可以', '多少', '嗎', '呢', '是', '要', '怎麼', '如何', '幾點', '到', '的', '在', '有', '校園', '海大', '請', '？', '?', '，', '。']);
+let timerIds = [];
+
+function tokenize(text) {
+  const normalized = text.toLowerCase().replace(/[？?，。！!、：:；;「」『』（）()\s]/g, '');
+  const tokens = new Set();
+  for (const word of normalized.match(/[a-z0-9]+|[\u4e00-\u9fff]{1,}/g) || []) {
+    if (stopWords.has(word)) continue;
+    if (/^[\u4e00-\u9fff]+$/.test(word)) {
+      for (let size = Math.min(4, word.length); size >= 2; size--) {
+        for (let i = 0; i <= word.length - size; i++) tokens.add(word.slice(i, i + size));
+      }
+      if (word.length === 1) tokens.add(word);
+    } else {
+      tokens.add(word);
+    }
+  }
+  return tokens;
+}
+
+function scoreDocument(questionTokens, document) {
+  const contentTokens = tokenize(document.text);
+  let matches = 0;
+  for (const token of questionTokens) {
+    if (contentTokens.has(token)) matches++;
+  }
+  return questionTokens.size ? matches / questionTokens.size : 0;
+}
+
+function renderDocuments(results) {
+  const resultMap = new Map(results.map(result => [result.document.id, result]));
+  document.getElementById('documentList').replaceChildren(...documents.map(item => {
+    const row = document.createElement('div');
+    const result = resultMap.get(item.id);
+    row.className = `document${result ? ' retrieved' : ''}`;
+    const id = document.createElement('span');
+    id.className = 'document-id';
+    id.textContent = item.id;
+    const text = document.createElement('span');
+    text.textContent = item.text;
+    row.append(id, text);
+    if (result) {
+      const score = document.createElement('span');
+      score.className = 'score';
+      score.textContent = `相關度 ${Math.round(result.score * 100)}%`;
+      row.append(score);
+    }
+    return row;
+  }));
+}
+
+function setStage(activeStage) {
+  const stages = ['stageRetrieve', 'stageAugment', 'stageGenerate'];
+  stages.forEach((id, index) => {
+    const element = document.getElementById(id);
+    element.className = `stage${index < activeStage ? ' done' : index === activeStage ? ' active' : ''}`;
+  });
+}
+
+function showTimeline(messages, activeIndex) {
+  document.getElementById('timeline').replaceChildren(...messages.map((message, index) => {
+    const item = document.createElement('div');
+    item.className = `timeline-item${index < activeIndex ? ' done' : index === activeIndex ? ' current' : ''}`;
+    item.textContent = message;
+    return item;
+  }));
+}
+
+function retrieve(question) {
+  const questionTokens = tokenize(question);
+  return documents
+    .map(document => ({ document, score: scoreDocument(questionTokens, document) }))
+    .filter(result => result.score > 0)
+    .sort((a, b) => b.score - a.score || a.document.id.localeCompare(b.document.id))
+    .slice(0, 2);
+}
+
+function startRag() {
+  const question = document.getElementById('questionInput').value.trim() || document.getElementById('questionText').textContent;
+  document.getElementById('questionInput').value = question;
+  document.getElementById('questionText').textContent = question;
+  document.getElementById('answer').textContent = '正在分析問題並搜尋知識文件…';
+  document.getElementById('citations').textContent = '';
+  document.getElementById('startButton').disabled = true;
+  document.getElementById('retrievedCount').textContent = '0';
+  document.getElementById('bestScore').textContent = '—';
+  timerIds.forEach(clearTimeout);
+  timerIds = [];
+
+  const results = retrieve(question);
+  renderDocuments([]);
+  setStage(0);
+  showTimeline(['分析問題關鍵字', '依相關度檢索文件', '把文件作為上下文', '根據上下文生成答案'], 0);
+
+  timerIds.push(setTimeout(() => {
+    renderDocuments(results);
+    setStage(1);
+    showTimeline(['分析問題關鍵字', `檢索完成：找到 ${results.length} 份相關文件`, '把文件作為上下文', '根據上下文生成答案'], 1);
+    document.getElementById('retrievedCount').textContent = String(results.length);
+    document.getElementById('bestScore').textContent = results.length ? `${Math.round(results[0].score * 100)}%` : '0%';
+  }, 450));
+
+  timerIds.push(setTimeout(() => {
+    setStage(2);
+    showTimeline(['分析問題關鍵字', `檢索完成：找到 ${results.length} 份相關文件`, '整理檢索文件作為回答上下文', '根據上下文生成答案'], 2);
+    const best = results[0]?.document;
+    const answer = best
+      ? best.answer
+      : '知識庫目前沒有找到足夠相關的資料，因此無法根據文件回答。你可以換個方式提問。';
+    document.getElementById('answer').textContent = answer;
+    document.getElementById('citations').textContent = best ? `來源：${results.map(result => result.document.id).join('、')}` : '來源：沒有符合的文件';
+  }, 900));
+
+  timerIds.push(setTimeout(() => {
+    setStage(3);
+    showTimeline(['分析問題關鍵字', `檢索完成：找到 ${results.length} 份相關文件`, '整理檢索文件作為回答上下文', '答案完成，並附上來源文件'], 4);
+    document.getElementById('startButton').disabled = false;
+  }, 1350));
+}
+
+document.getElementById('startButton').addEventListener('click', startRag);
+document.getElementById('questionInput').addEventListener('keydown', event => {
+  if (event.key === 'Enter') startRag();
+});
+document.querySelectorAll('[data-question]').forEach(button => {
+  button.addEventListener('click', () => {
+    document.getElementById('questionInput').value = button.dataset.question;
+    startRag();
+  });
+});
+document.getElementById('questionInput').value = '餐廳晚餐供餐到幾點？';
+renderDocuments([]);
+</script>
+</body>
+</html>
