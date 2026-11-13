@@ -2,8 +2,8 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport"="width=device-width, initial-scale=1">
-  <title>A 到 F 最短路徑</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kruskal 最小生成樹示範</title>
   <style>
     :root {
       color-scheme: dark;
@@ -14,6 +14,7 @@
       --muted: #9fb0c9;
       --accent: #4cc9f0;
       --chosen: #ffd166;
+      --rejected: #f07178;
       --good: #58d68d;
     }
     * { box-sizing: border-box; }
@@ -26,56 +27,63 @@
     }
     main { width: min(1120px, 94vw); margin: 0 auto; padding: 28px 0 40px; }
     h1 { margin: 0 0 6px; font-size: clamp(28px, 5vw, 48px); }
+    h2 { margin: 0 0 14px; font-size: 20px; }
     .subtitle { margin: 0 0 22px; color: var(--muted); }
-    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 18px; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; }
     .card {
       border: 1px solid #263a58;
       border-radius: 18px;
       background: rgba(17, 28, 46, .92);
       box-shadow: 0 18px 50px rgba(0,0,0,.28);
     }
-    #graphWrap { position: relative; min-height: 540px; overflow: hidden; }
+    #graphWrap { min-height: 540px; overflow: hidden; }
     svg { width: 100%; height: 540px; display: block; }
-    .edge { stroke: var(--line); stroke-width: 3; cursor: pointer; }
-    .edge.selected { stroke: var(--chosen); stroke-width: 7; }
+    .edge { stroke: var(--line); stroke-width: 3; transition: stroke .2s, stroke-width .2s; }
+    .edge.current { stroke: var(--accent); stroke-width: 6; }
+    .edge.chosen { stroke: var(--chosen); stroke-width: 7; }
+    .edge.rejected { stroke: var(--rejected); stroke-width: 4; stroke-dasharray: 8 6; }
     .edge-label {
       fill: var(--text); font-weight: 800; font-size: 17px; paint-order: stroke;
       stroke: var(--panel); stroke-width: 7px; stroke-linejoin: round;
     }
     .node { fill: #1b3152; stroke: var(--accent); stroke-width: 4; }
-    .node-text { fill: white; font-size: 25px; font-weight: 800; text-anchor: middle; dominant-baseline: middle; }
-    aside { padding: 18px; }
-    h2 { margin: 0 0 14px; font-size: 20px; }
-    label { display: block; color: var(--muted); font-size: 13px; margin: 12px 0 6px; }
-    input, select, button {
-      width: 100%;
-      border-radius: 10px;
-      border: 1px solid #355175;
-      background: #0b1524;
-      color: var(--text);
-      padding: 11px;
-      font: inherit;
+    .node-text {
+      fill: white; font-size: 25px; font-weight: 800; text-anchor: middle;
+      dominant-baseline: middle;
     }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    aside { padding: 18px; }
+    .legend { color: var(--muted); font-size: 14px; line-height: 1.8; }
     button {
-      cursor: pointer;
-      font-weight: 800;
+      width: 100%;
+      border: 0;
+      border-radius: 10px;
       margin-top: 10px;
-      border: none;
+      padding: 12px;
       background: var(--accent);
       color: #06111f;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
     }
     button.secondary { background: #263b5a; color: var(--text); }
-    #result {
+    button:disabled { cursor: not-allowed; opacity: .6; }
+    #status {
       margin-top: 16px;
       padding: 14px;
       border-radius: 12px;
       background: #091321;
-      min-height: 92px;
+      min-height: 88px;
+      line-height: 1.65;
     }
-    ol { padding-left: 22px; line-height: 1.65; }
     #total { color: var(--good); font-size: 30px; font-weight: 900; }
-    #path { color: var(--muted); line-height: 1.7; }
+    .table-wrap { margin-top: 18px; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid #263a58; }
+    th { color: var(--muted); font-size: 13px; }
+    td:last-child { color: var(--muted); }
+    .accepted { color: var(--chosen) !important; font-weight: 800; }
+    .skipped { color: var(--rejected) !important; font-weight: 800; }
+    .footer-link { display: inline-block; margin-top: 18px; color: var(--accent); }
     @media (max-width: 800px) {
       .layout { grid-template-columns: 1fr; }
       #graphWrap, svg { min-height: 430px; height: 430px; }
@@ -84,185 +92,182 @@
 </head>
 <body>
 <main>
-  <h1>A 到 F 最短路徑</h1>
-  <p class="subtitle">每個點只與相鄰點連線。點位排列為 B 左上、C 右上、E 右下、D 左下，並以 Dijkstra 演算法計算 A 到 F 的最短路徑。</p>
+  <h1>Kruskal 最小生成樹</h1>
+  <p class="subtitle">依照老師指定的六個頂點與九條固定成本邊，逐步示範 Kruskal 演算法。總成本應為 13。</p>
   <div class="layout">
-    <section class="card" id="graphWrap" aria-label="六點圖形">
-      <svg id="graph" viewBox="0 0 760 540"></svg>
+    <section class="card" id="graphWrap" aria-label="固定成本加權圖">
+      <svg id="graph" viewBox="0 0 760 540" role="img" aria-label="頂點 A 至 F 與九條固定成本邊"></svg>
     </section>
     <aside class="card">
-      <h2>設定與計算</h2>
-      <label for="from">起點</label>
-      <div class="row">
-        <select id="from"></select>
-        <select id="to"></select>
-      </div>
-      <label for="cost">相鄰兩點之間的 cost</label>
-      <input id="cost" type="number" min="1" max="99" value="10">
-      <button id="apply" type="button">套用成本並顯示</button>
-      <button id="randomize" class="secondary" type="button">隨機產生所有 cost</button>
-      <button id="calculate" type="button">計算最短路徑</button>
-      <div id="result" aria-live="polite">
-        <div>最短總成本</div>
-        <div id="total">—</div>
-        <div id="path">請先產生成本並計算。</div>
-        <ol id="steps"><li>設定完成後按「計算最短路徑」。</li></ol>
+      <h2>操作說明</h2>
+      <p class="legend">依成本由小到大檢查邊。若加入該邊不會形成環，就把它加入生成樹；否則略過。連通六個頂點需要選出 5 條邊。</p>
+      <button id="next" type="button">檢查下一條邊</button>
+      <button id="reset" class="secondary" type="button">重新示範</button>
+      <div id="status" aria-live="polite">
+        <div id="message">按下「檢查下一條邊」，開始從成本最小的邊示範。</div>
+        <div>目前生成樹成本</div>
+        <div id="total">0</div>
+        <div id="edgeCount">已選 0 / 5 條邊</div>
       </div>
     </aside>
   </div>
+
+  <section class="card table-wrap" aria-label="Kruskal 計算過程">
+    <table>
+      <thead>
+        <tr><th>順序</th><th>邊</th><th>成本</th><th>處理結果</th></tr>
+      </thead>
+      <tbody id="steps"></tbody>
+    </table>
+  </section>
+  <a class="footer-link" href="./shortest-path.html">前往 A 到 F 最短路徑作業</a>
 </main>
 <script>
 const nodes = ['A', 'B', 'C', 'D', 'E', 'F'];
-const positions = { A:[70,270], B:[280,150], C:[480,150], D:[280,390], E:[480,390], F:[690,270] };
+const positions = {
+  A: [75, 270], B: [255, 130], C: [255, 410],
+  D: [455, 270], E: [640, 130], F: [680, 410]
+};
+const edges = [
+  { from: 'A', to: 'B', cost: 4 },
+  { from: 'A', to: 'C', cost: 2 },
+  { from: 'B', to: 'C', cost: 1 },
+  { from: 'B', to: 'D', cost: 5 },
+  { from: 'C', to: 'D', cost: 8 },
+  { from: 'C', to: 'E', cost: 10 },
+  { from: 'D', to: 'E', cost: 2 },
+  { from: 'D', to: 'F', cost: 6 },
+  { from: 'E', to: 'F', cost: 3 }
+];
+const sortedEdges = [...edges].sort((a, b) => a.cost - b.cost);
 const svg = document.getElementById('graph');
-let edges = [];
-let selectedEdge = new Set();
-const adjacencyKeys = new Set([
-  'A-B', 'A-D',
-  'B-E',
-  'E-C',
-  'C-D',
-  'B-D',
-  'F-E', 'F-C'
-].map(key => key.split('-').sort().join('-')));
+const stepsBody = document.getElementById('steps');
+const parent = Object.fromEntries(nodes.map(node => [node, node]));
+let nextEdge = 0;
+let total = 0;
+let selectedCount = 0;
+const lineElements = new Map();
 
-for (const from of nodes) {
-  document.getElementById('from').insertAdjacentHTML('beforeend', `<option>${from}</option>`);
-  document.getElementById('to').insertAdjacentHTML('beforeend', `<option>${from}</option>`);
-}
-document.getElementById('to').value = 'B';
-
-function makeEdges() {
-  edges = [];
-  const possible = ['A-B', 'A-D', 'B-E', 'E-C', 'C-D', 'B-D', 'F-E', 'F-C'];
-  for (const pair of possible) {
-    const [from, to] = pair.split('-');
-    edges.push({ from, to, cost: Math.floor(Math.random() * 20) + 1 });
-  }
-  draw();
+function edgeKey(edge) {
+  return [edge.from, edge.to].sort().join('-');
 }
 
-function setEdges() {
-  edges = [];
-  const possible = ['A-B', 'A-D', 'B-E', 'E-C', 'C-D', 'B-D', 'F-E', 'F-C'];
-  for (const pair of possible) {
-    const [from, to] = pair.split('-');
-    edges.push({ from, to, cost: Math.floor(Math.random() * 20) + 1 });
-  }
+function find(node) {
+  if (parent[node] !== node) parent[node] = find(parent[node]);
+  return parent[node];
 }
 
-function edgeKey(a, b) { return [a, b].sort().join('-'); }
-
-function dijkstra() {
-  const distances = Object.fromEntries(nodes.map(node => [node, Infinity]));
-  const previous = {};
-  distances.A = 0;
-  const unvisited = new Set(nodes);
-  const steps = ['從起點 A 開始，令 A = 0，其餘點為∞。'];
-
-  while (unvisited.size) {
-    const current = [...unvisited].sort((a, b) => distances[a] - distances[b])[0];
-    if (!Number.isFinite(distances[current])) break;
-    unvisited.delete(current);
-    if (current === 'F') break;
-
-    for (const edge of edges) {
-      if (edge.from !== current && edge.to !== current) continue;
-      const neighbor = edge.from === current ? edge.to : edge.from;
-      if (!unvisited.has(neighbor)) continue;
-      const candidate = distances[current] + edge.cost;
-      if (candidate < distances[neighbor]) {
-        distances[neighbor] = candidate;
-        previous[neighbor] = current;
-        steps.push(`${current} → ${neighbor}：${distances[current]} + ${edge.cost} = ${candidate}，更新為 ${candidate}。`);
-      }
-    }
-  }
-
-  const route = [];
-  let current = 'F';
-  while (current) {
-    route.unshift(current);
-    if (current === 'A') break;
-    current = previous[current];
-  }
-  if (!Number.isFinite(distances.F)) {
-    document.getElementById('total').textContent = '∞';
-    document.getElementById('path').textContent = 'A 無法到達 F。';
-    document.getElementById('steps').innerHTML = '';
-    return;
-  }
-  selectedEdge = new Set(route.slice(0, -1).map((node, index) => edgeKey(node, route[index + 1])));
-  document.getElementById('total').textContent = distances.F;
-  document.getElementById('path').textContent = `最短路徑：${route.join(' → ')}`;
-  steps.push(`到達 F：A 到 F 的最短成本為 ${distances.F}，路徑為 ${route.join(' → ')}。`);
-  document.getElementById('steps').innerHTML = steps.map(step => `<li>${step}</li>`).join('');
-  draw();
-}
-
-function draw() {
-  svg.innerHTML = '';
+function drawGraph() {
   for (const edge of edges) {
     const [x1, y1] = positions[edge.from];
     const [x2, y2] = positions[edge.to];
-    const key = edgeKey(edge.from, edge.to);
+    const key = edgeKey(edge);
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', x1); line.setAttribute('y1', y1);
-    line.setAttribute('x2', x2); line.setAttribute('y2', y2);
-    line.setAttribute('class', `edge${selectedEdge.has(key) ? ' selected' : ''}`);
+    line.setAttribute('x1', x1);
+    line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2);
+    line.setAttribute('y2', y2);
+    line.setAttribute('class', 'edge');
     svg.appendChild(line);
-    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.setAttribute('x', (x1 + x2) / 2);
-    text.setAttribute('y', (y1 + y2) / 2 - 9);
-    text.setAttribute('class', 'edge-label');
-    text.setAttribute('text-anchor', 'middle');
-    text.textContent = edge.cost;
-    svg.appendChild(text);
+    lineElements.set(key, line);
+
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', (x1 + x2) / 2);
+    label.setAttribute('y', (y1 + y2) / 2 - 9);
+    label.setAttribute('class', 'edge-label');
+    label.setAttribute('text-anchor', 'middle');
+    label.textContent = edge.cost;
+    svg.appendChild(label);
   }
+
   for (const node of nodes) {
     const [x, y] = positions[node];
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    circle.setAttribute('cx', x); circle.setAttribute('cy', y); circle.setAttribute('r', 31);
+    circle.setAttribute('cx', x);
+    circle.setAttribute('cy', y);
+    circle.setAttribute('r', 30);
     circle.setAttribute('class', 'node');
     svg.appendChild(circle);
-    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.setAttribute('x', x); text.setAttribute('y', y);
-    text.setAttribute('class', 'node-text');
-    text.textContent = node;
-    svg.appendChild(text);
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', x);
+    label.setAttribute('y', y);
+    label.setAttribute('class', 'node-text');
+    label.textContent = node;
+    svg.appendChild(label);
   }
 }
 
-function calculate() { dijkstra(); }
+function finish() {
+  document.getElementById('message').textContent =
+    `完成！選入 ${selectedCount} 條邊，最小生成樹總成本為 ${total}。剩餘邊不必檢查，因為六個頂點已連通。`;
+  document.getElementById('next').disabled = true;
+}
 
-document.getElementById('apply').addEventListener('click', () => {
-  const from = document.getElementById('from').value;
-  const to = document.getElementById('to').value;
-  const cost = Number(document.getElementById('cost').value);
-  if (from === to || !Number.isInteger(cost) || cost < 1) {
-    alert('請選擇不同的兩點，並輸入正整數 cost。');
-    return;
+function processNextEdge() {
+  if (nextEdge >= sortedEdges.length || selectedCount === nodes.length - 1) return;
+
+  const edge = sortedEdges[nextEdge];
+  const key = edgeKey(edge);
+  const fromRoot = find(edge.from);
+  const toRoot = find(edge.to);
+  const row = document.createElement('tr');
+  const decision = document.createElement('td');
+
+  if (fromRoot === toRoot) {
+    decision.textContent = '略過：會形成環';
+    decision.className = 'skipped';
+    document.getElementById('message').textContent =
+      `檢查 ${edge.from}–${edge.to}（成本 ${edge.cost}）：兩點已連通，加入會形成環，因此略過。`;
+  } else {
+    parent[toRoot] = fromRoot;
+    selectedCount++;
+    total += edge.cost;
+    decision.textContent = '加入最小生成樹';
+    decision.className = 'accepted';
+    document.getElementById('message').textContent =
+      `檢查 ${edge.from}–${edge.to}（成本 ${edge.cost}）：不會形成環，加入生成樹。`;
   }
-  const edge = edges.find(item => edgeKey(item.from, item.to) === edgeKey(from, to));
-  if (!edge || !adjacencyKeys.has(edgeKey(from, to))) {
-    alert('A、B、C、D、E、F 之間只能修改相鄰的線。');
-    return;
+
+  const orderCell = document.createElement('td');
+  orderCell.textContent = String(nextEdge + 1);
+  const edgeCell = document.createElement('td');
+  edgeCell.textContent = `${edge.from}–${edge.to}`;
+  const costCell = document.createElement('td');
+  costCell.textContent = String(edge.cost);
+  row.append(orderCell, edgeCell, costCell, decision);
+  stepsBody.appendChild(row);
+  lineElements.get(key).setAttribute('class', `edge ${fromRoot === toRoot ? 'rejected' : 'chosen'}`);
+  nextEdge++;
+
+  const next = sortedEdges[nextEdge];
+  if (next && selectedCount < nodes.length - 1) {
+    lineElements.get(edgeKey(next)).setAttribute('class', 'edge current');
   }
-  edge.cost = cost;
-  selectedEdge.clear();
-  document.getElementById('total').textContent = '—';
-  document.getElementById('path').textContent = '成本已更新，請重新計算。';
-  document.getElementById('steps').innerHTML = '<li>成本已更新，請重新計算最短路徑。</li>';
-  draw();
-});
-document.getElementById('randomize').addEventListener('click', () => {
-  makeEdges();
-  selectedEdge.clear();
-  document.getElementById('total').textContent = '—';
-  document.getElementById('path').textContent = '已隨機產生成本，請開始計算。';
-});
-document.getElementById('calculate').addEventListener('click', calculate);
-makeEdges();
+  document.getElementById('total').textContent = String(total);
+  document.getElementById('edgeCount').textContent = `已選 ${selectedCount} / 5 條邊`;
+
+  if (selectedCount === nodes.length - 1) finish();
+}
+
+function resetDemo() {
+  for (const node of nodes) parent[node] = node;
+  nextEdge = 0;
+  total = 0;
+  selectedCount = 0;
+  stepsBody.replaceChildren();
+  for (const line of lineElements.values()) line.setAttribute('class', 'edge');
+  lineElements.get(edgeKey(sortedEdges[0])).setAttribute('class', 'edge current');
+  document.getElementById('message').textContent =
+    '按下「檢查下一條邊」，開始從成本最小的邊示範。';
+  document.getElementById('total').textContent = '0';
+  document.getElementById('edgeCount').textContent = '已選 0 / 5 條邊';
+  document.getElementById('next').disabled = false;
+}
+
+document.getElementById('next').addEventListener('click', processNextEdge);
+document.getElementById('reset').addEventListener('click', resetDemo);
+drawGraph();
+resetDemo();
 </script>
 </body>
 </html>
