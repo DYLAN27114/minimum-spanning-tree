@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="互動式 RAG 檢索增強生成教學：用校園 FAQ 示範文件檢索與答案生成。">
-  <title>RAG 校園問答示範</title>
+  <meta name="description" content="互動式 RAG 檢索增強生成教學：用天文與太空知識示範文件檢索與答案生成。">
+  <title>RAG 天文知識問答示範</title>
   <style>
     :root {
       color-scheme: dark;
@@ -117,19 +117,19 @@
     <span>資料結構互動教材　·　RAG 檢索增強生成</span>
     <a href="./">返回 Kruskal 最小生成樹作業</a>
   </div>
-  <h1>RAG 校園問答示範</h1>
+  <h1>RAG 天文知識問答示範</h1>
   <p class="subtitle">觀察 AI 如何先從文件找資料，再根據找到的內容回答問題。</p>
 
   <section class="panel" aria-label="問題輸入">
     <div class="querybar">
-      <input id="questionInput" aria-label="輸入校園問題" placeholder="例如：餐廳晚餐供餐到幾點？">
+      <input id="questionInput" aria-label="輸入天文問題" placeholder="例如：為什麼火星看起來是紅色的？">
       <button id="startButton" class="primary" type="button">開始檢索</button>
     </div>
     <div class="example-queries" aria-label="範例問題">
-      <button type="button" data-question="餐廳晚餐供餐到幾點？">餐廳供餐時間</button>
-      <button type="button" data-question="宿舍門禁是幾點？">宿舍門禁</button>
-      <button type="button" data-question="學生可以借多少本書？">圖書館借書</button>
-      <button type="button" data-question="校園停車每小時多少錢？">停車費用</button>
+      <button type="button" data-question="黑洞的事件視界是什麼？">黑洞與事件視界</button>
+      <button type="button" data-question="一光年代表多遠？">光年是什麼</button>
+      <button type="button" data-question="月亮為什麼每天看起來不一樣？">月亮的形狀</button>
+      <button type="button" data-question="彗星的尾巴為什麼背向太陽？">彗星的尾巴</button>
     </div>
   </section>
 
@@ -142,7 +142,7 @@
         </div>
         <div class="question-card">
           <div class="eyebrow">QUESTION</div>
-          <div id="questionText">餐廳晚餐供餐到幾點？</div>
+          <div id="questionText">為什麼火星看起來是紅色的？</div>
         </div>
         <div class="stages" aria-label="RAG 工作流程">
           <div id="stageRetrieve" class="stage">1. 檢索相關文件</div>
@@ -183,7 +183,7 @@
       </section>
       <section class="panel section">
         <h2>簡單模型說明</h2>
-        <p class="muted">此示範以關鍵字重疊計算文件相關度，選出分數最高的 2 份文件，再套用校園 FAQ 範本產生答案。它用來展示 RAG 流程，不會呼叫外部 AI，也不是大型語言模型。</p>
+        <p class="muted">此示範以關鍵字重疊計算文件相關度，選出分數最高的 2 份文件，再依最相關的天文知識整理答案。它用來展示 RAG 流程，不會呼叫外部 AI，也不是大型語言模型。</p>
       </section>
     </aside>
   </div>
@@ -209,44 +209,39 @@
 </main>
 <script>
 const documents = [
-  { id: 'D1', text: '海大餐廳平日午餐供餐時段是 11:00 到 13:30，晚餐是 17:00 到 19:00。', answer: '海大餐廳晚餐供餐到 19:00。' },
-  { id: 'D2', text: '餐廳可以使用學生證儲值付款，也可以使用現金。', answer: '餐廳可使用學生證儲值或現金付款。' },
-  { id: 'D3', text: '圖書館平日開放到晚上 22:00，週末開放到 17:00。', answer: '圖書館平日開放到 22:00，週末開放到 17:00。' },
-  { id: 'D4', text: '大學部學生一次可以借 10 本書，借閱期限是 30 天。', answer: '大學部學生一次可借 10 本書，期限為 30 天。' },
-  { id: 'D5', text: '借書逾期未還，每本書每天罰 5 元。', answer: '借書逾期每本每天罰 5 元。' },
-  { id: 'D6', text: '宿舍門禁時間是晚上 23:30，晚歸學生需要登記。', answer: '宿舍門禁是晚上 23:30，晚歸需要登記。' },
-  { id: 'D7', text: '宿舍住宿費每學期 12000 元，開學前需繳費。', answer: '宿舍住宿費每學期 12000 元。' },
-  { id: 'D8', text: '校車每 20 分鐘一班，往返校門與學生餐廳。', answer: '校車每 20 分鐘一班，往返校門與學生餐廳。' },
-  { id: 'D9', text: '游泳池平日開放到 21:00，提供學生使用。', answer: '游泳池平日開放到 21:00。' },
-  { id: 'D10', text: '機車停車每小時 500 元，要在停車場上鎖。', answer: '機車停車費每小時 500 元，並請上鎖。' }
+  { id: 'D1', text: '黑洞的事件視界是黑洞周圍的邊界；越過這條界線後，連光也無法逃離黑洞。', keywords: ['事件視界', '黑洞', '光無法逃離'], answer: '事件視界是黑洞周圍的界線，越過後連光都無法逃離。' },
+  { id: 'D2', text: '一光年是光在真空中一年走過的距離，約為 9.46 兆公里；它是距離單位，不是時間單位。', keywords: ['一光年', '光年', '距離單位', '兆公里'], answer: '一光年是距離單位，表示光一年走過的路程，約 9.46 兆公里。' },
+  { id: 'D3', text: '月球繞地球公轉時，太陽照亮月球的角度改變，因此從地球看見新月、上弦月、滿月等不同月相。', keywords: ['月相', '月球', '月亮', '新月', '上弦月', '滿月'], answer: '月球繞地球運行時，日照角度改變，所以我們看見不同的月相。' },
+  { id: 'D4', text: '日食發生時，月球移動到太陽與地球之間，月球影子落在地球表面；觀測日食必須使用合格護目設備。', keywords: ['日食', '日蝕', '日食護目'], answer: '日食是月球位於太陽和地球之間，影子投到地球上所形成的現象。' },
+  { id: 'D5', text: '火星表面的岩石與塵土含有氧化鐵，也就是類似鐵鏽的物質，使火星呈現紅橘色。', keywords: ['火星', '氧化鐵', '鐵鏽', '紅橘色'], answer: '火星表面的氧化鐵像鐵鏽一樣，讓火星看起來呈紅橘色。' },
+  { id: 'D6', text: '木星是太陽系最大的行星；它的大紅斑是一個持續存在的巨大風暴。', keywords: ['木星', '大紅斑', '木星風暴'], answer: '木星是太陽系最大的行星，大紅斑則是巨大的風暴。' },
+  { id: 'D7', text: '金星是太陽系最熱的行星，濃厚的大氣以二氧化碳為主，強烈的溫室效應使表面溫度極高。', keywords: ['金星', '溫室效應', '二氧化碳大氣', '金星溫度'], answer: '金星最熱，主要原因是濃厚二氧化碳大氣造成強烈溫室效應。' },
+  { id: 'D8', text: '土星的光環由大量冰塊、岩石與塵埃組成；從地球看去，光環像是環繞行星的薄盤。', keywords: ['土星', '土星光環', '光環', '冰塊岩石塵埃'], answer: '土星光環由冰塊、岩石和塵埃等許多小碎片組成。' },
+  { id: 'D9', text: '彗星接近太陽時，表面冰物質受熱變成氣體並帶出塵埃；太陽風和輻射壓會把彗尾推向背離太陽的方向。', keywords: ['彗星尾巴', '彗星', '彗尾', '背向太陽', '太陽風', '輻射壓'], answer: '彗星接近太陽後釋出的氣體和塵埃，會被太陽風與輻射壓推向背陽方向。' },
+  { id: 'D10', text: '國際太空站在距地面約 400 公里的低地球軌道運行，約 90 分鐘繞地球一圈。', keywords: ['國際太空站', '太空站', '低地球軌道', '90分鐘繞地球'], answer: '國際太空站約在地面上方 400 公里，每 90 分鐘左右繞地球一圈。' }
 ];
-const stopWords = new Set(['請問', '請問一下', '可以', '多少', '嗎', '呢', '是', '要', '怎麼', '如何', '幾點', '到', '的', '在', '有', '校園', '海大', '請', '？', '?', '，', '。']);
+const searchKeywords = [...new Set(documents.flatMap(document => document.keywords))]
+  .sort((a, b) => b.length - a.length);
 let timerIds = [];
 
-function tokenize(text) {
-  const normalized = text.toLowerCase().replace(/[？?，。！!、：:；;「」『』（）()\s]/g, '');
-  const tokens = new Set();
-  for (const word of normalized.match(/[a-z0-9]+|[\u4e00-\u9fff]{1,}/g) || []) {
-    if (stopWords.has(word)) continue;
-    if (/^[\u4e00-\u9fff]+$/.test(word)) {
-      for (let size = Math.min(4, word.length); size >= 2; size--) {
-        for (let i = 0; i <= word.length - size; i++) tokens.add(word.slice(i, i + size));
-      }
-      if (word.length === 1) tokens.add(word);
-    } else {
-      tokens.add(word);
+function extractQuestionKeywords(question) {
+  const normalizedQuestion = question.toLowerCase().replace(/[？?，。！!、：:；;「」『』（）()\s]/g, '');
+  const matched = [];
+  for (const keyword of searchKeywords) {
+    const normalizedKeyword = keyword.toLowerCase();
+    if (normalizedQuestion.includes(normalizedKeyword) &&
+        !matched.some(term => term.includes(normalizedKeyword))) {
+      matched.push(normalizedKeyword);
     }
   }
-  return tokens;
+  return matched;
 }
 
-function scoreDocument(questionTokens, document) {
-  const contentTokens = tokenize(document.text);
-  let matches = 0;
-  for (const token of questionTokens) {
-    if (contentTokens.has(token)) matches++;
-  }
-  return questionTokens.size ? matches / questionTokens.size : 0;
+function scoreDocument(questionKeywords, document) {
+  const matches = questionKeywords.filter(keyword =>
+    document.keywords.some(term => term.toLowerCase() === keyword)
+  ).length;
+  return questionKeywords.length ? matches / questionKeywords.length : 0;
 }
 
 function renderDocuments(results) {
@@ -289,9 +284,9 @@ function showTimeline(messages, activeIndex) {
 }
 
 function retrieve(question) {
-  const questionTokens = tokenize(question);
+  const questionKeywords = extractQuestionKeywords(question);
   return documents
-    .map(document => ({ document, score: scoreDocument(questionTokens, document) }))
+    .map(document => ({ document, score: scoreDocument(questionKeywords, document) }))
     .filter(result => result.score > 0)
     .sort((a, b) => b.score - a.score || a.document.id.localeCompare(b.document.id))
     .slice(0, 2);
@@ -330,7 +325,7 @@ function startRag() {
       ? best.answer
       : '知識庫目前沒有找到足夠相關的資料，因此無法根據文件回答。你可以換個方式提問。';
     document.getElementById('answer').textContent = answer;
-    document.getElementById('citations').textContent = best ? `來源：${results.map(result => result.document.id).join('、')}` : '來源：沒有符合的文件';
+    document.getElementById('citations').textContent = best ? `來源：${best.id}` : '來源：沒有符合的文件';
   }, 900));
 
   timerIds.push(setTimeout(() => {
@@ -350,7 +345,7 @@ document.querySelectorAll('[data-question]').forEach(button => {
     startRag();
   });
 });
-document.getElementById('questionInput').value = '餐廳晚餐供餐到幾點？';
+document.getElementById('questionInput').value = '為什麼火星看起來是紅色的？';
 renderDocuments([]);
 </script>
 </body>
