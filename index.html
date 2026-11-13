@@ -51,6 +51,7 @@
       fill: white; font-size: 25px; font-weight: 800; text-anchor: middle;
       dominant-baseline: middle;
     }
+    .node-place { fill: #84a1ba; font-size: 13px; text-anchor: middle; }
     aside { padding: 18px; }
     .legend { color: var(--muted); font-size: 14px; line-height: 1.8; }
     button {
@@ -125,8 +126,16 @@
 <script>
 const nodes = ['A', 'B', 'C', 'D', 'E', 'F'];
 const positions = {
-  A: [75, 270], B: [255, 130], C: [255, 410],
-  D: [455, 270], E: [640, 130], F: [680, 410]
+  A: [75, 270], B: [265, 125], C: [265, 410],
+  D: [500, 125], E: [500, 410], F: [685, 270]
+};
+const placeNames = {
+  A: '校門',
+  B: '圖書館',
+  C: '餐廳',
+  D: '系館',
+  E: '宿舍',
+  F: '體育館'
 };
 const edges = [
   { from: 'A', to: 'B', cost: 4 },
@@ -194,6 +203,13 @@ function drawGraph() {
     label.setAttribute('class', 'node-text');
     label.textContent = node;
     svg.appendChild(label);
+
+    const place = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    place.setAttribute('x', x);
+    place.setAttribute('y', y + (y < 200 ? -43 : y > 350 ? 52 : -43));
+    place.setAttribute('class', 'node-place');
+    place.textContent = placeNames[node];
+    svg.appendChild(place);
   }
 }
 
